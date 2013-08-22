@@ -1,7 +1,6 @@
 -module(amazonproductapi).
 
 -include_lib("amazonproductapi/include/amazonproductapi.hrl").
--include_lib("xmerl/include/xmerl.hrl").
 
 -export([
          itemSearch/2,
@@ -13,15 +12,15 @@
 -define(REQUEST_URI, "/onca/xml").
 
 
--spec itemSearch(string(), #amazonproductapi_config{}) -> {ok, #xmlElement{}}.
+-spec itemSearch(string(), #amazonproductapi_config{}) -> {ok, list()}.
 itemSearch(Keywords, Config) ->
     itemSearch(Keywords, 1, Config).
 
--spec itemSearch(string(), integer(), #amazonproductapi_config{}) -> {ok, #xmlElement{}}.
+-spec itemSearch(string(), integer(), #amazonproductapi_config{}) -> {ok, list()}.
 itemSearch(Keywords, ItemPage, Config) ->
     do_rest_call(get, "ItemSearch", [{"Keywords", Keywords}, {"ItemPage", integer_to_list(ItemPage)}], Config).
 
--spec itemLookup(string(), string(), #amazonproductapi_config{}) -> {ok, #xmlElement{}}.
+-spec itemLookup(string(), string(), #amazonproductapi_config{}) -> {ok, list()}.
 itemLookup(IdType, ItemId, Config) ->
     do_rest_call(get, "ItemLookup", [{"IdType", IdType}, {"ItemId", ItemId}], Config).
 
@@ -56,21 +55,17 @@ do_rest_call(RequestMethod, Operation, Params, Config) ->
         ++ StringedParams ++ "&Signature=" ++ Signature,
 
     case httpc:request(RequestMethod, {Url, []}, [], []) of
-        {ok, {{_, 200, _}, ResponseHeaders, Body}} ->
-            {ok, interpret_body(ResponseHeaders, Body)};
-        {ok, {{_, OtherCode, _}, ResponseHeaders, Body}} ->
+        {ok, {{_, 200, _}, _ResponseHeaders, Body}} ->
+			{ok, parsexml:parse(list_to_binary(Body))};
+        {ok, {{_, OtherCode, _}, _ResponseHeaders, Body}} ->
             {error,
-             {http, OtherCode, interpret_body(ResponseHeaders, Body)}};
+			 {http, OtherCode, parsexml:parse(list_to_binary(Body))}};
         {error, R} ->
             {error, R}
     end.
 
 map_request_method(get) -> "GET";
 map_request_method(post) -> "POST".
-
-interpret_body(_Headers, Body) ->
-    {XML, _} = xmerl_scan:string(Body),
-    XML.
 
 make_date() ->
     z_convert:to_list(z_dateformat:format(calendar:local_time(), "c", [])).
